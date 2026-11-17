@@ -88,11 +88,12 @@ export default function plugin(bb: BbPluginApi) {
             `Продолжи этот диалог из Gemini (контекст ниже). Ответь на последнее сообщение пользователя, сохраняя контекст.\n\n` +
             `--- История диалога ---\n${transcript}\n--- Конец истории ---`;
           const projects = await bb.sdk.projects.list();
-          const projectId = projects[0]?.id;
-          if (!projectId) return { threadId: null, error: "no project available" };
+          const personal = projects.find((p) => /personal|личн/i.test(p.name ?? "")) ?? projects[0];
+          const hosts = await bb.sdk.hosts.list();
+          const hostId = hosts[0]?.id;
           const thread = await bb.sdk.threads.spawn({
-            projectId,
-            environment: { type: "project-default" },
+            ...(personal?.id ? { projectId: personal.id, environment: { type: "project-default" } } : { environment: { type: "personal" } }),
+            ...(hostId ? { hostId } : {}),
             prompt: seed,
             title: title ? `Gemini: ${title}` : "Gemini chat continuation",
           });

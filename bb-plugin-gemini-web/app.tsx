@@ -6,7 +6,43 @@ type Status = { running: boolean; health: boolean; proxy: boolean };
 type Chat = { cid: string; title: string; pinned: boolean; timestamp: number };
 type Turn = { role: string; text: string };
 
-const btn = { padding: "6px 14px", borderRadius: 6, cursor: "pointer" } as const;
+const card: React.CSSProperties = {
+  background: "rgba(148,163,184,.06)",
+  border: "1px solid rgba(148,163,184,.12)",
+  borderRadius: 12,
+  padding: 14,
+};
+const btnBase: React.CSSProperties = {
+  padding: "7px 14px",
+  borderRadius: 8,
+  border: "1px solid rgba(148,163,184,.2)",
+  background: "rgba(148,163,184,.08)",
+  color: "inherit",
+  fontSize: 13,
+  cursor: "pointer",
+};
+const btnPrimary: React.CSSProperties = {
+  ...btnBase,
+  background: "linear-gradient(135deg,#1A73E8,#8AB4F8)",
+  border: "none",
+  color: "#fff",
+  fontWeight: 600,
+};
+
+function Dot({ ok }: { ok: boolean }) {
+  return (
+    <span
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: ok ? "#22c55e" : "#64748b",
+        boxShadow: ok ? "0 0 6px rgba(34,197,94,.6)" : "none",
+        display: "inline-block",
+      }}
+    />
+  );
+}
 
 function ControlPanel() {
   const rpc = useRpc<typeof controlContract>();
@@ -16,17 +52,18 @@ function ControlPanel() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [turns, setTurns] = useState<Turn[] | null>(null);
   const [openCid, setOpenCid] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       setStatus(await rpc.call("gemini.status", {}));
-      setErr(null);
     } catch (e) {
       setErr(String(e));
     }
   }, [rpc]);
 
   const loadChats = useCallback(async () => {
+    setErr(null);
     try {
       const r = await rpc.call("gemini.chats", {});
       setChats(r.data ?? []);
@@ -60,8 +97,9 @@ function ControlPanel() {
   };
 
   const openHistory = async (cid: string) => {
-    setOpenCid(cid);
+    setOpenCid(cid === openCid ? null : cid);
     setTurns(null);
+    if (cid === openCid) return;
     try {
       const r = await rpc.call("gemini.chatHistory", { cid });
       setTurns(r.turns ?? []);
@@ -73,10 +111,11 @@ function ControlPanel() {
   const continueChat = async (chat: Chat) => {
     setBusy(true);
     setErr(null);
+    setNotice(null);
     try {
       const r = await rpc.call("gemini.continueChat", { cid: chat.cid, title: chat.title });
       if (r.error) setErr(r.error);
-      else setErr(null);
+      else setNotice(`Тред создан: ${chat.title}. Открой его и выбери провайдер Gemini Web.`);
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -84,68 +123,82 @@ function ControlPanel() {
     }
   };
 
-  const badge = (label: string, ok: boolean) => (
-    <span
-      style={{
-        padding: "2px 8px",
-        borderRadius: 6,
-        fontSize: 12,
-        background: ok ? "rgba(34,197,94,.15)" : "rgba(148,163,184,.15)",
-        color: ok ? "#22c55e" : "#94a3b8",
-      }}
-    >
-      {label}: {ok ? "on" : "off"}
-    </span>
+  const statusRow = (label: string, ok: boolean) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+      <Dot ok={ok} />
+      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ marginLeft: "auto", color: ok ? "#22c55e" : "#64748b", fontWeight: 600 }}>
+        {ok ? "вкл" : "выкл"}
+      </span>
+    </div>
   );
 
   return (
-    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>gemini-bridge control</div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {badge("process", status?.running ?? false)}
-        {badge("health", status?.health ?? false)}
-        {badge("proxy", status?.proxy ?? false)}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button disabled={busy} onClick={() => void act("gemini.start")} style={btn}>
-          {busy ? "…" : "Start"}
-        </button>
-        <button disabled={busy} onClick={() => void act("gemini.stop")} style={btn}>Stop</button>
-        <button disabled={busy} onClick={() => void refresh()} style={btn}>Refresh</button>
-      </div>
-      <div style={{ fontSize: 12, color: "#94a3b8" }}>
-        Auto-starts on request; auto-stops after idle (settings: idleStopMs).
+    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 18 }}>✦</span>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>Gemini Bridge</span>
       </div>
 
-      <div style={{ borderTop: "1px solid rgba(148,163,184,.2)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Gemini web chats</div>
-          <button onClick={() => void loadChats()} style={btn}>Load chats</button>
+      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .5 }}>
+          Состояние моста
         </div>
+        {statusRow("Процесс", status?.running ?? false)}
+        {statusRow("Сервис отвечает", status?.health ?? false)}
+        {statusRow("Прокси", status?.proxy ?? false)}
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button disabled={busy} onClick={() => void act("gemini.start")} style={btnPrimary}>
+            {busy ? "…" : "Запустить"}
+          </button>
+          <button disabled={busy} onClick={() => void act("gemini.stop")} style={btnBase}>Остановить</button>
+          <button disabled={busy} onClick={() => void refresh()} style={btnBase}>Обновить</button>
+        </div>
+        <div style={{ fontSize: 12, color: "#64748b" }}>
+          Автозапуск при запросе · автоостановка после простоя
+        </div>
+      </div>
+
+      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .5 }}>
+            Диалоги Gemini
+          </span>
+          <button onClick={() => void loadChats()} style={btnBase}>Загрузить</button>
+        </div>
+        {chats.length === 0 && (
+          <div style={{ fontSize: 13, color: "#64748b" }}>Нажми «Загрузить» чтобы увидеть свои диалоги.</div>
+        )}
         {chats.map((c) => (
-          <div key={c.cid} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-            <button
-              onClick={() => void openHistory(c.cid)}
-              style={{ ...btn, flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-              title={c.title}
-            >
-              {c.pinned ? "📌 " : ""}{c.title || c.cid}
-            </button>
-            <button disabled={busy} onClick={() => void continueChat(c)} style={btn}>Continue</button>
+          <div key={c.cid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={() => void openHistory(c.cid)}
+                style={{ ...btnBase, flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={c.title}
+              >
+                {c.pinned ? "📌 " : "💬 "}{c.title || c.cid}
+              </button>
+              <button disabled={busy} onClick={() => void continueChat(c)} style={btnPrimary}>Продолжить</button>
+            </div>
+            {openCid === c.cid && turns && (
+              <div style={{ maxHeight: 240, overflow: "auto", fontSize: 12, background: "rgba(0,0,0,.2)", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                {turns.map((t, i) => (
+                  <div key={i} style={{ lineHeight: 1.4 }}>
+                    <b style={{ color: t.role === "user" ? "#8ab4f8" : "#22c55e" }}>
+                      {t.role === "user" ? "Вы" : "Gemini"}:
+                    </b>{" "}
+                    {t.text.slice(0, 280)}{t.text.length > 280 ? "…" : ""}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
-        {openCid && turns && (
-          <div style={{ maxHeight: 260, overflow: "auto", fontSize: 12, background: "rgba(148,163,184,.08)", borderRadius: 6, padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-            {turns.map((t, i) => (
-              <div key={i}>
-                <b style={{ color: t.role === "user" ? "#8ab4f8" : "#22c55e" }}>{t.role}:</b>{" "}
-                {t.text.slice(0, 300)}{t.text.length > 300 ? "…" : ""}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
-      {err && <div style={{ fontSize: 12, color: "#ef4444" }}>{err}</div>}
+
+      {notice && <div style={{ fontSize: 12, color: "#22c55e" }}>{notice}</div>}
+      {err && <div style={{ fontSize: 12, color: "#ef4444", wordBreak: "break-word" }}>{err}</div>}
     </div>
   );
 }
