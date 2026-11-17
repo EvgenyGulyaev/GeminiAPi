@@ -5,6 +5,7 @@ description = "OpenAI-compatible bridge over gemini.google.com web RPC for pi/bb
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "browser-cookie3>=0.20.1",
     "fastapi>=0.163.1",
     "gemini-webapi>=2.1.1",
     "uvicorn>=0.54.0",

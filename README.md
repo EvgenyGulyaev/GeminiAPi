@@ -25,9 +25,19 @@ uv sync
 uv run python -m gemini_bridge      # 127.0.0.1:8787
 ```
 
-Cookie взять в браузере: залогиниться на https://gemini.google.com →
-DevTools → Application → Cookies → `https://gemini.google.com` →
-скопировать значения `__Secure-1PSID` и `__Secure-1PSIDTS`.
+Cookie — два способа:
+
+1. **Авто из Chrome** (залогинен на gemini.google.com):
+   ```bash
+   uv run python scripts/extract_cookies.py
+   ```
+   macOS: подтвердить диалог Keychain «Chrome Safe Storage».
+2. **Вручную**: DevTools → Application → Cookies → `https://gemini.google.com` →
+   значения `__Secure-1PSID` и `__Secure-1PSIDTS` в `cookies.json`:
+   ```json
+   {"__Secure-1PSID": "...", "__Secure-1PSIDTS": "..."}
+   ```
+
 Альтернатива — env `GEMINI_1PSID` / `GEMINI_1PSIDTS`.
 Мост сам освежает `1PSIDTS` и сохраняет его в `cookies.json` при остановке.
 
