@@ -23,6 +23,9 @@ pi/bb ──OpenAI /v1/chat/completions──> gemini-bridge (127.0.0.1:8787)
 
 ## Настройка с нуля (порядок важен)
 
+**Быстрый путь:** `./install.sh` (мост + bb-плагин + `gemini-acp` на PATH +
+cookie) → `./start.sh` → рестарт bb. Ниже — ручные шаги и детали.
+
 1. Зависимости:
    ```bash
    uv sync
