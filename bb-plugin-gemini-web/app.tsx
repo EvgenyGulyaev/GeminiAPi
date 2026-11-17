@@ -134,20 +134,20 @@ function ControlPanel() {
   );
 
   return (
-    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ padding: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start", width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
         <span style={{ fontSize: 18 }}>✦</span>
         <span style={{ fontSize: 15, fontWeight: 700 }}>Gemini Bridge</span>
       </div>
 
-      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10, flex: "0 1 300px", minWidth: 260 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .5 }}>
           Состояние моста
         </div>
         {statusRow("Процесс", status?.running ?? false)}
         {statusRow("Сервис отвечает", status?.health ?? false)}
         {statusRow("Прокси", status?.proxy ?? false)}
-        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
           <button disabled={busy} onClick={() => void act("gemini.start")} style={btnPrimary}>
             {busy ? "…" : "Запустить"}
           </button>
@@ -159,7 +159,7 @@ function ControlPanel() {
         </div>
       </div>
 
-      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10, flex: "1 1 420px", minWidth: 320 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .5 }}>
             Диалоги Gemini
@@ -182,13 +182,13 @@ function ControlPanel() {
               <button disabled={busy} onClick={() => void continueChat(c)} style={btnPrimary}>Продолжить</button>
             </div>
             {openCid === c.cid && turns && (
-              <div style={{ maxHeight: 240, overflow: "auto", fontSize: 12, background: "rgba(0,0,0,.2)", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ maxHeight: 420, overflow: "auto", fontSize: 13, background: "rgba(0,0,0,.2)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                 {turns.map((t, i) => (
-                  <div key={i} style={{ lineHeight: 1.4 }}>
+                  <div key={i} style={{ lineHeight: 1.5 }}>
                     <b style={{ color: t.role === "user" ? "#8ab4f8" : "#22c55e" }}>
                       {t.role === "user" ? "Вы" : "Gemini"}:
                     </b>{" "}
-                    {t.text.slice(0, 280)}{t.text.length > 280 ? "…" : ""}
+                    {t.text}
                   </div>
                 ))}
               </div>
@@ -197,8 +197,8 @@ function ControlPanel() {
         ))}
       </div>
 
-      {notice && <div style={{ fontSize: 12, color: "#22c55e" }}>{notice}</div>}
-      {err && <div style={{ fontSize: 12, color: "#ef4444", wordBreak: "break-word" }}>{err}</div>}
+      {notice && <div style={{ fontSize: 12, color: "#22c55e", width: "100%" }}>{notice}</div>}
+      {err && <div style={{ fontSize: 12, color: "#ef4444", wordBreak: "break-word", width: "100%" }}>{err}</div>}
     </div>
   );
 }
