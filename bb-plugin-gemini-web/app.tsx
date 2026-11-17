@@ -154,7 +154,7 @@ export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "gemini-bridge-control",
     title: "Gemini Bridge",
-    icon: "Zap",
+    icon: "Sparkles",
     component: ControlPanel,
   });
 });
