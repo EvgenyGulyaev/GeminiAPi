@@ -93,10 +93,23 @@ uv run python -m gemini_bridge
 Примечания по proxy:
 - `socks5h://` (remote DNS) надёжнее для Gemini: `socks5://`/`http://` с
   локальным DNS могут таймаутить на `gemini.google.com/app`.
-- Через proxy IP сессия может быть `UNAUTHENTICATED` (cookie выданы для другого
-  IP) → реестр моделей деградирует. Мост обходит это: известные модели
-  (Hydrogen/Argon/Pro/Flash-Lite) выбираются номером категории в model-header,
-  а не по реестру — генерация работает даже так.
+- **Сессия привязана к IP.** Cookie, извлечённые из Chrome (один IP), не
+  авторизуются с другого IP (proxy) → guest-сессия → только Flash, Pro-модели
+  (Argon/Hydrogen) недоступны. Чтобы получить Argon через proxy, cookie должны
+  быть выданы ДЛЯ proxy IP — залогиниться в Gemini через тот же proxy:
+  ```bash
+  # 1. локальный forwarder (браузеры не умеют SOCKS5-auth):
+  GEMINI_PROXY="socks5h://user:pass@host:port" uv run python scripts/proxy_forwarder.py &
+  # 2. headed Chromium через forwarder, залогиниться Pro-аккаунтом:
+  GEMINI_PROXY="socks5://127.0.0.1:10800" uv run --with playwright python scripts/login_via_proxy.py
+  # скрипт сам запишет cookies.json для proxy IP после логина
+  # 3. мост через proxy с этими cookie:
+  GEMINI_PROXY="socks5h://user:pass@host:port" ./start.sh
+  ```
+  После этого сессия авторизована (Pro), Argon/Hydrogen работают.
+- Известные модели (Hydrogen/Argon/Pro/Flash-Lite) выбираются номером категории
+  в model-header (пустой hex), а не по реестру — работает и при деградированном
+  реестре.
 
 Альтернативы без residential proxy:
 - **Официальный Gemini API** (`GEMINI_API_KEY`) — IP-ограничений нет,
