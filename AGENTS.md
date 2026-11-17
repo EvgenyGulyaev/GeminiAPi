@@ -53,14 +53,19 @@ pi/bb ──OpenAI /v1/chat/completions──> gemini-bridge (127.0.0.1:8787)
    в model-header с пустым hex. Не подбирайте header вслепую: locked-модель
    (Carbon) сталлит сессию и роняет auth.
 6. **bb: каталог моделей bb — внутренний реестр, правки models.json недостаточны.**
-   Подключить через панель плагина «Api модели» (clirelay-test):
-   вкладка «Подключение» → добавить API-адрес `http://127.0.0.1:8787/v1` →
-   плагин сделает `GET /v1/models` (discovery) → подключить нужные модели.
-   После этого они появятся в выборе моделей bb.
+   pi sub-provider `gemini-web` фильтруется каталогом bb-core. Рабочий обход —
+   top-level ACP-провайдер `bb-plugin-gemini-web/` (см. README «bb: отдельный
+   ACP-провайдер»): `bb plugin install . --yes` + `gemini-acp` на PATH + рестарт bb.
+   Требует `parameterizedModelPicker:true`, без пустого `permissionCli`.
 
 ## Эксплуатация
 
 - Cookie протухли (401/AuthError) → повторить шаг 2, перезапустить сервер.
+- **IP/локация**: веб-RPC банит датацентровые IP (`LOCATION_REJECTED`,
+  `hosting:true`). Residential IP в поддерживаемой стране → работает. Хостинг
+  VPN-exit (Hostkey и т.п.) не подходит. Прокси: `GEMINI_PROXY=http://…` /
+  `socks5h://…` (мост гонит все RPC через него). Альтернативы: официальный
+  `GEMINI_API_KEY` (без IP-банов) или CDP-вариант (RPC внутри реального Chrome).
 - **Не запускать второй GeminiClient с теми же cookie** — гонка ротации
   `1PSIDTS` инвалидирует сессию рабочего сервера (проверено: UNAUTHENTICATED).
 - `1PSIDTS` мост освежает сам (auto_refresh) и сохраняет в `cookies.json`.

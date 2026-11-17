@@ -42,6 +42,41 @@ Cookie — два способа:
 Мост сам освежает `1PSIDTS` и сохраняет его в `cookies.json` при остановке.
 
 Порт: `GEMINI_BRIDGE_PORT` (default 8787). Файл cookie: `GEMINI_COOKIE_FILE`.
+Прокси: `GEMINI_PROXY` (см. ниже).
+
+## IP, локация и proxy (важно)
+
+Gemini веб-RPC **отвергает датацентровые/хостинговые IP** (анти-бот).
+Симптом: ошибка `LOCATION_REJECTED` / «IP address temporarily flagged»,
+модели не загружаются. Это **не** проблема страны — IP может быть в
+поддерживаемой стране (NL/DE/US), но если он `hosting:true` (датацентр,
+напр. Hostkey/Hetzner/DigitalOcean), Google банит его для `batchexecute`.
+
+Проверить свой exit IP:
+```bash
+curl -s "http://ip-api.com/json/<IP>?fields=country,isp,proxy,hosting"
+# hosting:true  → веб-RPC будет банить
+# hosting:false → residential, работает
+```
+
+**Решение — residential proxy** (IP не датацентра, в поддерживаемой стране):
+```bash
+# http / socks5, с авторизацией или без:
+export GEMINI_PROXY="http://user:pass@residential-host:port"
+# или socks5 (remote DNS):
+export GEMINI_PROXY="socks5h://user:pass@host:port"
+uv run python -m gemini_bridge
+# в логе: gemini-bridge: proxy=on
+```
+Мост маршрутизирует все RPC (включая ротацию cookie) через `GEMINI_PROXY`.
+Обычный VPN с датацентровым exit (напр. v2RayTun → Hostkey) **не подходит** —
+нужен именно residential exit.
+
+Альтернативы без residential proxy:
+- **Официальный Gemini API** (`GEMINI_API_KEY`) — IP-ограничений нет,
+  датацентровые IP разрешены. Самый стабильный путь.
+- **CDP-вариант моста** — RPC исполняется внутри реального Chrome (браузерный
+  fingerprint проходит анти-бот даже с hosting IP). Требует открытый Chrome.
 
 ## Подключение к pi/bb
 
@@ -75,6 +110,34 @@ Cookie — два способа:
 - Конкретные модели аккаунта: `curl -s localhost:8787/v1/models` → добавить их
   `id` (= `model_name`) в `models` тем же шаблоном.
 - В bb: `/model` → выбрать `gemini-web/...`.
+
+## bb: отдельный ACP-провайдер (рекомендуется)
+
+Каталог моделей bb (pi sub-provider) **фильтрует** `gemini-web` — правки
+`models.json` и панель «Api модели» не добавляют его в выбор bb (особенность
+bb-core). Обход — top-level ACP-провайдер `bb-plugin-gemini-web/`:
+
+```bash
+cd bb-plugin-gemini-web
+npm install
+bb plugin build
+bb plugin install . --yes
+# адаптер должен быть на PATH (bb спавнит его по имени):
+ln -sf "$PWD/bin/gemini-acp.mjs" ~/.local/bin/gemini-acp
+bb plugin reload gemini-web   # после первого install лучше рестарт bb
+```
+
+После этого в bb появляется провайдер **Gemini Web** с моделями
+`gemini-4-argon` (default), `gemini-4-hydrogen`, `gemini-web`. ACP-агент
+`gemini-acp` гоняет agentic tool-loop (bash/read/write/edit) поверх моста.
+
+Ключевые требования (грабли, уже учтены в плагине):
+- `parameterizedModelPicker: true` в provider options — иначе только `acp-default`.
+- `gemini-acp` на PATH — иначе bb не спавнит адаптер (модели не discover).
+- Без пустого `permissionCli` в `acpLaunchSpec` — ACP-схема отвергает пустые
+  массивы → ошибка `acpLaunchSpec is required`.
+- URL моста: настройка плагина `bridgeUrl` (default `http://127.0.0.1:8787/v1`).
+- Каталог моделей bb кешируется — после правок плагина нужен **рестарт bb**.
 
 ## Проверки
 

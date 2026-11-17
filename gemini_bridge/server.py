@@ -32,6 +32,10 @@ from .protocol import flatten_messages, holdback_end, parse_reply, tool_instruct
 
 COOKIE_FILE = Path(os.environ.get("GEMINI_COOKIE_FILE", "cookies.json"))
 PORT = int(os.environ.get("GEMINI_BRIDGE_PORT", "8787"))
+# Optional proxy to route Gemini RPC through a clean (residential) exit IP.
+# Hosting/datacenter IPs get LOCATION_REJECTED by Gemini web; residential works.
+# Format: http://[user:pass@]host:port | socks5[h]://[user:pass@]host:port
+PROXY = os.environ.get("GEMINI_PROXY") or None
 DEFAULT_MODEL = "gemini-web"
 ARGON_MODEL = "gemini-4-argon"
 MODEL_HEADER_KEY = "x-goog-ext-525001261-jspb"
@@ -76,8 +80,9 @@ def _save_cookies() -> None:
 async def lifespan(app: FastAPI):
     global _client
     psid, psidts = _load_cookies()
-    _client = GeminiClient(secure_1psid=psid, secure_1psidts=psidts)
+    _client = GeminiClient(secure_1psid=psid, secure_1psidts=psidts, proxy=PROXY)
     await _client.init(auto_refresh=True)
+    print(f"gemini-bridge: proxy={'on' if PROXY else 'off (direct)'}", flush=True)
     _save_cookies()  # persist rotated 1PSIDTS for next restart
     yield
     _save_cookies()
