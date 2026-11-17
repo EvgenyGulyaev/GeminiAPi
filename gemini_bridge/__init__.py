@@ -1,0 +1,1 @@
+"""OpenAI-compatible bridge over Gemini web (gemini-webapi)."""

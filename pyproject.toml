@@ -1,0 +1,19 @@
+[project]
+name = "gemini-bridge"
+version = "0.1.0"
+description = "OpenAI-compatible bridge over gemini.google.com web RPC for pi/bb agent coding"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.163.1",
+    "gemini-webapi>=2.1.1",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
