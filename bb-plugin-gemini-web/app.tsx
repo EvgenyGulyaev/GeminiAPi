@@ -155,6 +155,7 @@ export default definePluginApp((app) => {
     id: "gemini-bridge-control",
     title: "Gemini Bridge",
     icon: "Sparkles",
+    path: "gemini-bridge",
     component: ControlPanel,
   });
 });
