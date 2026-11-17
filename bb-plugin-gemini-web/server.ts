@@ -88,18 +88,37 @@ export default function plugin(bb: BbPluginApi) {
             `Продолжи этот диалог из Gemini (контекст ниже). Ответь на последнее сообщение пользователя, сохраняя контекст.\n\n` +
             `--- История диалога ---\n${transcript}\n--- Конец истории ---`;
           const projects = await bb.sdk.projects.list();
-          const personal = projects.find((p) => /personal|личн/i.test(p.name ?? "")) ?? projects[0];
+          const personal = projects.find((p) => /personal|личн/i.test(p.name ?? ""));
           const hosts = await bb.sdk.hosts.list();
           const hostId = hosts[0]?.id;
-          const thread = await bb.sdk.threads.spawn({
-            ...(personal?.id ? { projectId: personal.id, environment: { type: "project-default" } } : { environment: { type: "personal" } }),
-            ...(hostId ? { hostId } : {}),
+          const base = {
             prompt: seed,
             title: title ? `Gemini: ${title}` : "Gemini chat continuation",
-          });
+            providerId: "gemini-web",
+            model: "gemini-4-argon",
+            executionInputSources: { providerId: "explicit", model: "explicit" },
+            ...(hostId ? { hostId } : {}),
+          };
+          let thread;
+          const attempts: Array<Record<string, unknown>> = [
+            { environment: { type: "personal" } },
+            { projectId: "proj_personal", environment: { type: "project-default" } },
+            ...(projects[0]?.id ? [{ projectId: projects[0].id, environment: { type: "project-default" } }] : []),
+          ];
+          let lastErr = "";
+          for (const a of attempts) {
+            try {
+              thread = await bb.sdk.threads.spawn({ ...base, ...a });
+              break;
+            } catch (e) {
+              lastErr = (e as Error)?.message ?? String(e);
+            }
+          }
+          if (!thread) return { threadId: null, error: lastErr };
           return { threadId: thread?.id ?? thread?.threadId ?? null, error: null };
         } catch (e) {
-          return { threadId: null, error: String(e) };
+          const err = e as { message?: string; issues?: unknown; body?: unknown };
+          return { threadId: null, error: `${err?.message ?? e} | ${JSON.stringify(err?.issues ?? err?.body ?? "")}`.slice(0, 300) };
         }
       },
     },
