@@ -79,16 +79,24 @@ curl -s "http://ip-api.com/json/<IP>?fields=country,isp,proxy,hosting"
 
 **Решение — residential proxy** (IP не датацентра, в поддерживаемой стране):
 ```bash
-# http / socks5, с авторизацией или без:
-export GEMINI_PROXY="http://user:pass@residential-host:port"
-# или socks5 (remote DNS):
+# socks5h (remote DNS через proxy) — рекомендуется для Gemini:
 export GEMINI_PROXY="socks5h://user:pass@host:port"
+# или http / socks5 (локальный DNS может таймаутить на gemini.google.com):
+export GEMINI_PROXY="http://user:pass@host:port"
 uv run python -m gemini_bridge
 # в логе: gemini-bridge: proxy=on
 ```
 Мост маршрутизирует все RPC (включая ротацию cookie) через `GEMINI_PROXY`.
 Обычный VPN с датацентровым exit (напр. v2RayTun → Hostkey) **не подходит** —
-нужен именно residential exit.
+нужен именно residential exit (`hosting:false`).
+
+Примечания по proxy:
+- `socks5h://` (remote DNS) надёжнее для Gemini: `socks5://`/`http://` с
+  локальным DNS могут таймаутить на `gemini.google.com/app`.
+- Через proxy IP сессия может быть `UNAUTHENTICATED` (cookie выданы для другого
+  IP) → реестр моделей деградирует. Мост обходит это: известные модели
+  (Hydrogen/Argon/Pro/Flash-Lite) выбираются номером категории в model-header,
+  а не по реестру — генерация работает даже так.
 
 Альтернативы без residential proxy:
 - **Официальный Gemini API** (`GEMINI_API_KEY`) — IP-ограничений нет,
