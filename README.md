@@ -55,11 +55,11 @@ Cookie — два способа:
       "api": "openai-completions",
       "apiKey": "dummy",
       "models": [
-        { "id": "gemini-web", "name": "Gemini Web (default)", "reasoning": false,
+        { "id": "gemini-4-hydrogen", "name": "Gemini 4 Hydrogen", "reasoning": false,
           "input": ["text"], "contextWindow": 128000, "maxTokens": 8192,
           "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } },
-        { "id": "gemini-web-thinking", "name": "Gemini Web (extended thinking)",
-          "reasoning": true, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192,
+        { "id": "gemini-4-argon", "name": "Gemini 4 Argon (code)", "reasoning": false,
+          "input": ["text"], "contextWindow": 128000, "maxTokens": 8192,
           "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } }
       ]
     }
@@ -68,6 +68,10 @@ Cookie — два способа:
 ```
 
 - `gemini-web` → дефолтная модель аккаунта; `-thinking` суффикс → extended thinking.
+- **Hydrogen** (`gemini-4-hydrogen`) и **Argon** (`gemini-4-argon`) — основные модели.
+  Argon («Code & analysis») не отдаётся RPC `otAQ7b` и не имеет hex-id: мост
+  выбирает его номером категории 8 в model-header (пустой hex). Подобрано
+  эмпирически; неверный header (напр. locked Carbon) сталлит сессию — не гадайте.
 - Конкретные модели аккаунта: `curl -s localhost:8787/v1/models` → добавить их
   `id` (= `model_name`) в `models` тем же шаблоном.
 - В bb: `/model` → выбрать `gemini-web/...`.

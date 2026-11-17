@@ -33,6 +33,8 @@ from .protocol import flatten_messages, holdback_end, parse_reply, tool_instruct
 COOKIE_FILE = Path(os.environ.get("GEMINI_COOKIE_FILE", "cookies.json"))
 PORT = int(os.environ.get("GEMINI_BRIDGE_PORT", "8787"))
 DEFAULT_MODEL = "gemini-web"
+ARGON_MODEL = "gemini-4-argon"
+MODEL_HEADER_KEY = "x-goog-ext-525001261-jspb"
 
 _client: GeminiClient | None = None
 # ponytail: one global lock — web client is a single session (reqid counter).
@@ -104,12 +106,35 @@ def _map_exception(e: Exception) -> JSONResponse:
     return _error(500, str(e), "internal_error")
 
 
-def _resolve_model(model_id: str) -> tuple[str | None, bool]:
-    """Bridge model id -> (web model name or None, extended_thinking)."""
+def _account_capacity() -> tuple[int, int]:
+    try:
+        for m in _client.list_models() or []:
+            return m.capacity, m.capacity_field
+    except Exception:
+        pass
+    return 2, 12  # Pro-tier fallback
+
+
+def _resolve_model(model_id: str):
+    """Bridge model id -> (generate_content model arg, extended_thinking).
+
+    Model arg is None (account default), a registry name str, or a custom
+    header dict for Argon (picker category 8, no hex id exposed by the RPC).
+    """
     thinking = model_id.endswith("-thinking")
     base = model_id[: -len("-thinking")] if thinking else model_id
     if base == DEFAULT_MODEL:
-        return None, thinking  # account default model
+        return None, thinking
+    if base == ARGON_MODEL:
+        cap, cap_field = _account_capacity()
+        tail = f"null,{cap}" if cap_field == 13 else str(cap)
+        header = f'[1,null,null,null,"",null,null,0,[4,5,6,8],null,null,{tail},null,null,8]'
+        return {
+            "model_name": ARGON_MODEL,
+            "model_header": {MODEL_HEADER_KEY: header},
+            "capacity": cap,
+            "capacity_field": cap_field,
+        }, thinking
     return base, thinking
 
 
@@ -133,9 +158,26 @@ def _tool_calls_payload(calls) -> list[dict]:
 @app.get("/v1/models")
 async def list_models():
     data = [{"id": DEFAULT_MODEL, "object": "model", "owned_by": "google-web"}]
+    data.append(
+        {"id": ARGON_MODEL, "object": "model", "owned_by": "google-web",
+         "display_name": "Code & analysis", "model_number": 8}
+    )
     try:
         for m in _client.list_models() or []:
-            data.append({"id": m.model_name, "object": "model", "owned_by": "google-web"})
+            data.append(
+                {
+                    "id": m.model_name,
+                    "object": "model",
+                    "owned_by": "google-web",
+                    "display_name": m.display_name,
+                    "aliases": list(m.aliases),
+                    "model_id": m.model_id,
+                    "capacity": m.capacity,
+                    "capacity_field": m.capacity_field,
+                    "model_number": m.model_number,
+                    "model_header": m.model_header,
+                }
+            )
     except Exception:
         pass  # dynamic catalog unavailable -> default model still works
     return {"object": "list", "data": data}
@@ -144,6 +186,33 @@ async def list_models():
 @app.get("/health")
 async def health():
     return {"ok": _client is not None}
+
+
+@app.get("/debug/raw-models")
+async def raw_models():
+    """Raw GET_USER_STATUS model list (part_body[15]) — discovery debugging."""
+    from gemini_webapi.constants import GRPC
+    from gemini_webapi.types import RPCData
+    from gemini_webapi.utils.parsing import get_nested_value
+
+    async with _lock:
+        resp = await _client._batch_execute([RPCData(rpcid=GRPC.GET_USER_STATUS, payload="[]")])
+    out = []
+    for part_body in _client._parse_rpc_results(resp.text, GRPC.GET_USER_STATUS):
+        out.append(part_body)
+    return {"raw": out}
+
+
+@app.get("/debug/rpc")
+async def debug_rpc(rpcid: str, payload: str = "[]"):
+    """Raw batchexecute call for discovery debugging (localhost only)."""
+    from gemini_webapi.types import RPCData
+
+    async with _lock:
+        resp = await _client._batch_execute(
+            [RPCData.model_construct(rpcid=rpcid, payload=payload, identifier="generic")]
+        )
+    return {"text": resp.text[:200000]}
 
 
 @app.post("/v1/chat/completions")

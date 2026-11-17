@@ -47,8 +47,11 @@ pi/bb ──OpenAI /v1/chat/completions──> gemini-bridge (127.0.0.1:8787)
    ```
 5. pi: провайдер `gemini-web` в `~/.pi/agent/models.json`
    (`api: openai-completions`, `baseUrl: http://127.0.0.1:8787/v1`,
-   `apiKey: dummy`, модели `gemini-web`, `gemini-web-thinking` + id из
-   `/v1/models`). Шаблон в README.md. pi подхватывает при открытии `/model`.
+   `apiKey: dummy`). Основные модели: `gemini-4-hydrogen`, `gemini-4-argon`
+   (+ `-thinking` варианты). Шаблон в README.md. pi подхватывает при `/model`.
+   **Argon**: не приходит в RPC `otAQ7b`, hex-id нет — мост шлёт номер категории 8
+   в model-header с пустым hex. Не подбирайте header вслепую: locked-модель
+   (Carbon) сталлит сессию и роняет auth.
 6. **bb: каталог моделей bb — внутренний реестр, правки models.json недостаточны.**
    Подключить через панель плагина «Api модели» (clirelay-test):
    вкладка «Подключение» → добавить API-адрес `http://127.0.0.1:8787/v1` →
@@ -58,6 +61,8 @@ pi/bb ──OpenAI /v1/chat/completions──> gemini-bridge (127.0.0.1:8787)
 ## Эксплуатация
 
 - Cookie протухли (401/AuthError) → повторить шаг 2, перезапустить сервер.
+- **Не запускать второй GeminiClient с теми же cookie** — гонка ротации
+  `1PSIDTS` инвалидирует сессию рабочего сервера (проверено: UNAUTHENTICATED).
 - `1PSIDTS` мост освежает сам (auto_refresh) и сохраняет в `cookies.json`.
 - Лог: stdout uvicorn + loguru; фон-лог обычно `/tmp/gemini-bridge.log`.
 - Модели: `gemini-web` = дефолт аккаунта; суффикс `-thinking` = extended
