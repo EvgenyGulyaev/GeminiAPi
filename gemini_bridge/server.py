@@ -36,6 +36,7 @@ PORT = int(os.environ.get("GEMINI_BRIDGE_PORT", "8787"))
 # Hosting/datacenter IPs get LOCATION_REJECTED by Gemini web; residential works.
 # Format: http://[user:pass@]host:port | socks5[h]://[user:pass@]host:port
 PROXY = os.environ.get("GEMINI_PROXY") or None
+GEN_TIMEOUT = int(os.environ.get("GEMINI_GEN_TIMEOUT", "150"))
 DEFAULT_MODEL = "gemini-web"
 ARGON_MODEL = "gemini-4-argon"
 MODEL_HEADER_KEY = "x-goog-ext-525001261-jspb"
@@ -44,8 +45,14 @@ CATEGORY_MAP = {
     "gemini-4-hydrogen": 1,
     "gemini-pro": 3,
     "gemini-flash-lite": 6,
-    "gemini-4-argon": 8,
 }
+# Full web-UI Argon header (literal "argon" selector at idx4 + idx24, cat 8 at
+# idx14). The library appends thinking+sessionid after it; Google reads idx24.
+ARGON_HEADER = (
+    '[1,null,null,null,"argon",null,"en",null,[4,33,22,5,6,8,16,19,20,38],'
+    'null,null,null,null,null,8,1,"gemini-bridge",'
+    '["boq_gemini-web-uiserver_20261116.12_p0"],null,null,null,null,null,null,"argon"]'
+)
 
 _client: GeminiClient | None = None
 # ponytail: one global lock — web client is a single session (reqid counter).
@@ -139,6 +146,18 @@ def _resolve_model(model_id: str):
     base = model_id[: -len("-thinking")] if thinking else model_id
     if base == DEFAULT_MODEL:
         return None, thinking
+    if base == ARGON_MODEL:
+        # Argon needs the full web-UI header format: literal "argon" at idx4 and
+        # idx24 (the model selector), category 8 at idx14. The simple empty-hex
+        # category header stalls in authenticated sessions (routes to locked
+        # Carbon). Captured from the real UI StreamGenerate request.
+        cap, cap_field = _account_capacity()
+        return {
+            "model_name": ARGON_MODEL,
+            "model_header": {MODEL_HEADER_KEY: ARGON_HEADER},
+            "capacity": cap,
+            "capacity_field": cap_field,
+        }, thinking
     if base in CATEGORY_MAP:
         cap, cap_field = _account_capacity()
         tail = f"null,{cap}" if cap_field == 13 else str(cap)
@@ -253,9 +272,14 @@ async def chat_completions(request: Request, payload: dict = Body(...)):
     if not stream:
         async with _lock:
             try:
-                out = await _client.generate_content(
-                    prompt, model=web_model, temporary=True, extended_thinking=thinking
+                out = await asyncio.wait_for(
+                    _client.generate_content(
+                        prompt, model=web_model, temporary=True, extended_thinking=thinking
+                    ),
+                    timeout=GEN_TIMEOUT,
                 )
+            except asyncio.TimeoutError:
+                return _error(504, f"generation timed out after {GEN_TIMEOUT}s", "timeout")
             except Exception as e:  # noqa: BLE001 — mapped to OpenAI error shape
                 return _map_exception(e)
         parsed = parse_reply(out.text)
