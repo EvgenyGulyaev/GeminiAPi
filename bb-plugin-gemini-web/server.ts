@@ -1,5 +1,5 @@
 import type { BbPluginApi, JsonValue } from "@get-bb/plugin-sdk";
-import { bridgeHealth, isRunning, readProxy, startBridge, stopBridge } from "./src/bridge-manager.mjs";
+import { bridgeHealth, isRunning, readProxy, startBridge, stopBridge, ensureBridge, touchActivity, lastActivity } from "./src/bridge-manager.mjs";
 import { controlContract } from "./contract.js";
 
 /**
@@ -55,7 +55,29 @@ export default function plugin(bb: BbPluginApi) {
     const v = await settings.get();
     return String(v.bridgeUrl ?? "http://127.0.0.1:8787/v1").replace(/\/v1\/?$/, "");
   };
+  const repoPath = async () => {
+    const v = await settings.get();
+    return String(v.repoPath ?? "/Users/evgeny/Work/gemini");
+  };
+  // On-demand start + idle auto-stop for chat browsing (same 3-min window as prompts).
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const pokeBridge = async () => {
+    const repo = await repoPath();
+    const url = `${await bridgeBase()}/v1`;
+    await ensureBridge(repo, url);
+    touchActivity(repo);
+    const v = await settings.get();
+    const idleMs = Number(v.idleStopMs ?? 180000);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (idleMs > 0) {
+      idleTimer = setTimeout(() => {
+        if (Date.now() - lastActivity(repo) >= idleMs) stopBridge();
+      }, idleMs);
+      idleTimer.unref?.();
+    }
+  };
   const bridgeGet = async (path: string) => {
+    await pokeBridge();
     const r = await fetch(`${await bridgeBase()}${path}`, { signal: AbortSignal.timeout(30000) });
     if (!r.ok) throw new Error(`bridge ${r.status}`);
     return r.json();

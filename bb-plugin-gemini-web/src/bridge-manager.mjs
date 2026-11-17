@@ -3,7 +3,7 @@
  * and the plugin backend (control panel RPC).
  */
 import { spawn, execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const base = (url) => url.replace(/\/v1\/?$/, "");
@@ -67,4 +67,21 @@ export async function ensureBridge(repoPath, url, timeoutMs = 75000) {
     if (await bridgeHealth(url)) return true;
   }
   return false;
+}
+
+const activityFile = (repoPath) => join(repoPath, ".bridge-activity");
+
+/** Mark bridge activity (resets the idle auto-stop window). */
+export function touchActivity(repoPath) {
+  try {
+    writeFileSync(activityFile(repoPath), String(Date.now()));
+  } catch {}
+}
+
+export function lastActivity(repoPath) {
+  try {
+    return Number(readFileSync(activityFile(repoPath), "utf8")) || 0;
+  } catch {
+    return 0;
+  }
 }
