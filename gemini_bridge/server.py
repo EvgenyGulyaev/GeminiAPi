@@ -39,6 +39,13 @@ PROXY = os.environ.get("GEMINI_PROXY") or None
 DEFAULT_MODEL = "gemini-web"
 ARGON_MODEL = "gemini-4-argon"
 MODEL_HEADER_KEY = "x-goog-ext-525001261-jspb"
+# Picker category numbers (empty hex id selects by category). Verified: argon=8.
+CATEGORY_MAP = {
+    "gemini-4-hydrogen": 1,
+    "gemini-pro": 3,
+    "gemini-flash-lite": 6,
+    "gemini-4-argon": 8,
+}
 
 _client: GeminiClient | None = None
 # ponytail: one global lock — web client is a single session (reqid counter).
@@ -123,19 +130,22 @@ def _account_capacity() -> tuple[int, int]:
 def _resolve_model(model_id: str):
     """Bridge model id -> (generate_content model arg, extended_thinking).
 
-    Model arg is None (account default), a registry name str, or a custom
-    header dict for Argon (picker category 8, no hex id exposed by the RPC).
+    Known web models are selected by picker category number with an empty hex
+    id (custom header), bypassing the account model registry — this works even
+    when the registry is degraded (e.g. UNAUTHENTICATED session via proxy IP).
+    Unknown ids fall back to registry name resolution.
     """
     thinking = model_id.endswith("-thinking")
     base = model_id[: -len("-thinking")] if thinking else model_id
     if base == DEFAULT_MODEL:
         return None, thinking
-    if base == ARGON_MODEL:
+    if base in CATEGORY_MAP:
         cap, cap_field = _account_capacity()
         tail = f"null,{cap}" if cap_field == 13 else str(cap)
-        header = f'[1,null,null,null,"",null,null,0,[4,5,6,8],null,null,{tail},null,null,8]'
+        cat = CATEGORY_MAP[base]
+        header = f'[1,null,null,null,"",null,null,0,[4,5,6,8],null,null,{tail},null,null,{cat}]'
         return {
-            "model_name": ARGON_MODEL,
+            "model_name": base,
             "model_header": {MODEL_HEADER_KEY: header},
             "capacity": cap,
             "capacity_field": cap_field,
