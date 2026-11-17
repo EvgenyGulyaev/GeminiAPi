@@ -320,7 +320,8 @@ def _stream(request, prompt, web_model, thinking, cid, created, model_id, has_to
 
 
 def main() -> None:
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")
+    host = os.environ.get("GEMINI_BRIDGE_HOST", "127.0.0.1")
+    uvicorn.run(app, host=host, port=PORT, log_level="info")
 
 
 if __name__ == "__main__":
