@@ -222,6 +222,37 @@ async def health():
     return {"ok": _client is not None}
 
 
+@app.get("/v1/chats")
+async def list_chats():
+    """List the account's Gemini web conversations (for import into BB)."""
+    async with _lock:
+        try:
+            await _client._fetch_recent_chats()
+        except Exception:
+            pass
+        chats = _client.list_chats() or []
+    return {
+        "data": [
+            {"cid": c.cid, "title": c.title, "pinned": c.is_pinned, "timestamp": c.timestamp}
+            for c in chats
+        ]
+    }
+
+
+@app.get("/v1/chats/{cid}")
+async def chat_history(cid: str, limit: int = 30):
+    """Read a conversation's turns (chronological order) for context import."""
+    async with _lock:
+        try:
+            hist = await _client.read_chat(cid, limit=limit)
+        except Exception as e:  # noqa: BLE001
+            return _error(502, str(e), "upstream_error")
+    if hist is None:
+        return _error(404, f"chat {cid} not found", "not_found")
+    turns = [{"role": t.role, "text": t.text} for t in reversed(hist.turns)]
+    return {"cid": cid, "turns": turns}
+
+
 @app.get("/debug/raw-models")
 async def raw_models():
     """Raw GET_USER_STATUS model list (part_body[15]) — discovery debugging."""

@@ -51,6 +51,16 @@ export default function plugin(bb: BbPluginApi) {
     };
   };
 
+  const bridgeBase = async () => {
+    const v = await settings.get();
+    return String(v.bridgeUrl ?? "http://127.0.0.1:8787/v1").replace(/\/v1\/?$/, "");
+  };
+  const bridgeGet = async (path: string) => {
+    const r = await fetch(`${await bridgeBase()}${path}`, { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) throw new Error(`bridge ${r.status}`);
+    return r.json();
+  };
+
   bb.rpc.register(
     controlContract,
     {
@@ -64,6 +74,32 @@ export default function plugin(bb: BbPluginApi) {
       "gemini.stop": async () => {
         stopBridge();
         return status();
+      },
+      "gemini.chats": async () => bridgeGet("/v1/chats"),
+      "gemini.chatHistory": async ({ cid }) => bridgeGet(`/v1/chats/${encodeURIComponent(cid)}?limit=40`),
+      "gemini.continueChat": async ({ cid, title }) => {
+        try {
+          const hist = await bridgeGet(`/v1/chats/${encodeURIComponent(cid)}?limit=40`);
+          const turns = (hist.turns ?? []) as { role: string; text: string }[];
+          const transcript = turns
+            .map((t) => `${t.role === "user" ? "User" : "Gemini"}: ${t.text}`)
+            .join("\n\n");
+          const seed =
+            `Продолжи этот диалог из Gemini (контекст ниже). Ответь на последнее сообщение пользователя, сохраняя контекст.\n\n` +
+            `--- История диалога ---\n${transcript}\n--- Конец истории ---`;
+          const projects = await bb.sdk.projects.list();
+          const projectId = projects[0]?.id;
+          if (!projectId) return { threadId: null, error: "no project available" };
+          const thread = await bb.sdk.threads.spawn({
+            projectId,
+            environment: { type: "project-default" },
+            prompt: seed,
+            title: title ? `Gemini: ${title}` : "Gemini chat continuation",
+          });
+          return { threadId: thread?.id ?? thread?.threadId ?? null, error: null };
+        } catch (e) {
+          return { threadId: null, error: String(e) };
+        }
       },
     },
     { experimental_discoverable: true },
