@@ -10,15 +10,47 @@
  */
 import { Readable, Writable } from "node:stream";
 import { randomUUID } from "node:crypto";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 
 import { streamChat, listModels } from "../src/bridge-client.mjs";
 import { TOOL_DEFS, executeTool } from "../src/tools.mjs";
+import { ensureBridge, stopBridge } from "../src/bridge-manager.mjs";
 
 const VERSION = "0.1.0";
 const BRIDGE_URL = (process.env.GEMINI_BRIDGE_URL ?? "http://127.0.0.1:8787/v1").replace(/\/$/, "");
 const MAX_TURNS = 30;
 const DEFAULT_MODEL = "gemini-4-argon";
+// repo root = bin/../.. ; bridge auto-starts on demand and stops after idle.
+const REPO_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const IDLE_STOP_MS = Number(process.env.GEMINI_IDLE_STOP_MS ?? 180000); // 3 min
+const ACTIVITY_FILE = join(REPO_PATH, ".bridge-activity");
+
+let idleTimer = null;
+function touchActivity() {
+  try {
+    writeFileSync(ACTIVITY_FILE, String(Date.now()));
+  } catch {}
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+function scheduleIdleStop() {
+  if (IDLE_STOP_MS <= 0) return; // 0 disables auto-stop
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    let last = 0;
+    try {
+      last = Number(readFileSync(ACTIVITY_FILE, "utf8")) || 0;
+    } catch {}
+    // only stop if no activity across all threads during the idle window
+    if (Date.now() - last >= IDLE_STOP_MS) stopBridge();
+  }, IDLE_STOP_MS);
+  idleTimer.unref?.();
+}
 
 /** Flatten ACP prompt content blocks into plain text. */
 function flattenPrompt(prompt) {
@@ -133,6 +165,14 @@ class GeminiAgent {
       });
     };
 
+    // on-demand: start the bridge if down (~9s), mark activity, cancel idle-stop
+    touchActivity();
+    const up = await ensureBridge(REPO_PATH, BRIDGE_URL);
+    if (!up) {
+      emitText("[gemini-acp: bridge failed to start — check cookies/proxy]");
+      return { stopReason: "end_turn" };
+    }
+
     try {
       let turns = 0;
       while (turns < MAX_TURNS) {
@@ -182,6 +222,8 @@ class GeminiAgent {
       return { stopReason: "end_turn" };
     } finally {
       this.#running.delete(sessionId);
+      touchActivity();
+      scheduleIdleStop();
     }
   }
 

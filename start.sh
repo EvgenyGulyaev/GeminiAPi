@@ -3,6 +3,7 @@
 # Env passthrough: GEMINI_PROXY, GEMINI_BRIDGE_PORT, GEMINI_BRIDGE_HOST, GEMINI_COOKIE_FILE.
 set -euo pipefail
 cd "$(dirname "$0")"
+[[ -f .env ]] && set -a && source .env && set +a
 
 BG=0
 for arg in "$@"; do

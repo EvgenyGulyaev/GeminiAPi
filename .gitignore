@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 .pytest_cache/
 cookies.json
-.env
+.env.bridge-activity
