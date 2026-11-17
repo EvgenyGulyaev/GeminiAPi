@@ -97,7 +97,7 @@ export default function plugin(bb: BbPluginApi) {
         stopBridge();
         return status();
       },
-      "gemini.chats": async () => bridgeGet("/v1/chats"),
+      "gemini.chats": async ({ limit }) => bridgeGet(`/v1/chats?limit=${limit ?? 50}`),
       "gemini.chatHistory": async ({ cid }) => bridgeGet(`/v1/chats/${encodeURIComponent(cid)}?limit=40`),
       "gemini.continueChat": async ({ cid, title }) => {
         try {

@@ -223,11 +223,11 @@ async def health():
 
 
 @app.get("/v1/chats")
-async def list_chats():
+async def list_chats(limit: int = 50):
     """List the account's Gemini web conversations (for import into BB)."""
     async with _lock:
         try:
-            await _client._fetch_recent_chats()
+            await _client._fetch_recent_chats(recent=max(1, min(limit, 200)))
         except Exception:
             pass
         chats = _client.list_chats() or []

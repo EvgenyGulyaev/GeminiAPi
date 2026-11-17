@@ -12,7 +12,7 @@ export const controlContract = defineRpcContract({
   "gemini.start": { input: z.object({}).strict(), output: statusOut },
   "gemini.stop": { input: z.object({}).strict(), output: statusOut },
   "gemini.chats": {
-    input: z.object({}).strict(),
+    input: z.object({ limit: z.number().optional() }).strict(),
     output: z.object({
       data: z.array(z.object({ cid: z.string(), title: z.string(), pinned: z.boolean(), timestamp: z.number() })),
     }),

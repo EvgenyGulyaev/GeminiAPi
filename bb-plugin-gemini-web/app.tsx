@@ -50,6 +50,8 @@ function ControlPanel() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
+  const [chatLimit, setChatLimit] = useState(50);
+  const [query, setQuery] = useState("");
   const [turns, setTurns] = useState<Turn[] | null>(null);
   const [openCid, setOpenCid] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -62,11 +64,12 @@ function ControlPanel() {
     }
   }, [rpc]);
 
-  const loadChats = useCallback(async () => {
+  const loadChats = useCallback(async (limit: number) => {
     setErr(null);
     try {
-      const r = await rpc.call("gemini.chats", {});
+      const r = await rpc.call("gemini.chats", { limit });
       setChats(r.data ?? []);
+      setChatLimit(limit);
     } catch (e) {
       setErr(String(e));
     }
@@ -160,41 +163,56 @@ function ControlPanel() {
       </div>
 
       <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10, flex: "1 1 420px", minWidth: 320 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .5 }}>
-            Диалоги Gemini
+            Диалоги Gemini {chats.length > 0 && `· ${chats.length}`}
           </span>
-          <button onClick={() => void loadChats()} style={btnBase}>Загрузить</button>
+          <button onClick={() => void loadChats(chatLimit)} style={btnBase}>Загрузить</button>
         </div>
         {chats.length === 0 && (
           <div style={{ fontSize: 13, color: "#64748b" }}>Нажми «Загрузить» чтобы увидеть свои диалоги.</div>
         )}
-        {chats.map((c) => (
-          <div key={c.cid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                onClick={() => void openHistory(c.cid)}
-                style={{ ...btnBase, flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                title={c.title}
-              >
-                {c.pinned ? "📌 " : "💬 "}{c.title || c.cid}
-              </button>
-              <button disabled={busy} onClick={() => void continueChat(c)} style={btnPrimary}>Продолжить</button>
-            </div>
-            {openCid === c.cid && turns && (
-              <div style={{ maxHeight: 420, overflow: "auto", fontSize: 13, background: "rgba(0,0,0,.2)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                {turns.map((t, i) => (
-                  <div key={i} style={{ lineHeight: 1.5 }}>
-                    <b style={{ color: t.role === "user" ? "#8ab4f8" : "#22c55e" }}>
-                      {t.role === "user" ? "Вы" : "Gemini"}:
-                    </b>{" "}
-                    {t.text}
-                  </div>
-                ))}
+        {chats.length > 0 && (
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск по названию…"
+            style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid rgba(148,163,184,.2)", background: "rgba(0,0,0,.2)", color: "inherit", fontSize: 13, outline: "none" }}
+          />
+        )}
+        <div style={{ maxHeight: 380, overflow: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
+          {chats
+            .filter((c) => !query || (c.title || "").toLowerCase().includes(query.toLowerCase()))
+            .map((c) => (
+            <div key={c.cid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  onClick={() => void openHistory(c.cid)}
+                  style={{ ...btnBase, flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={c.title}
+                >
+                  {c.pinned ? "📌 " : "💬 "}{c.title || c.cid}
+                </button>
+                <button disabled={busy} onClick={() => void continueChat(c)} style={btnPrimary}>Продолжить</button>
               </div>
-            )}
-          </div>
-        ))}
+              {openCid === c.cid && turns && (
+                <div style={{ maxHeight: 420, overflow: "auto", fontSize: 13, background: "rgba(0,0,0,.2)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {turns.map((t, i) => (
+                    <div key={i} style={{ lineHeight: 1.5 }}>
+                      <b style={{ color: t.role === "user" ? "#8ab4f8" : "#22c55e" }}>
+                        {t.role === "user" ? "Вы" : "Gemini"}:
+                      </b>{" "}
+                      {t.text}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {chats.length >= chatLimit && (
+          <button onClick={() => void loadChats(chatLimit + 50)} style={btnBase}>Загрузить ещё (+50)</button>
+        )}
       </div>
 
       {notice && <div style={{ fontSize: 12, color: "#22c55e", width: "100%" }}>{notice}</div>}
