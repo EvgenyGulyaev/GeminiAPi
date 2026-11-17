@@ -12,10 +12,6 @@ function buildLaunchSpec(bridgeUrl: string): JsonValue {
     command: "gemini-acp",
     args: [],
     env: { GEMINI_BRIDGE_URL: bridgeUrl },
-    permissionCli: {
-      full: [],
-      workspaceWrite: [],
-    },
   } satisfies JsonValue;
 }
 
