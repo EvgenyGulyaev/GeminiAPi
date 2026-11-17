@@ -16,6 +16,24 @@ Tool-calling эмулируется текстовым протоколом: м�
 отвечать fenced-блоками ```` ```tool_call ```` с JSON, мост парсит их в
 нативные OpenAI `tool_calls`.
 
+## Быстрая установка (1–2 команды)
+
+```bash
+./install.sh        # uv sync + bb-плагин + gemini-acp на PATH + cookie из Chrome
+./start.sh          # запуск моста (foreground; -b для фона)
+```
+
+Затем **рестарт bb** → провайдер **Gemini Web** → `gemini-4-argon`.
+
+Если exit IP датацентровый (`hosting:true`, Gemini банит) — нужен residential
+proxy:
+```bash
+GEMINI_PROXY="socks5h://user:pass@host:port" ./start.sh
+```
+
+`install.sh --no-cookies` — пропустить извлечение cookie. Требования: `uv`,
+`node`, `bb` на PATH; Chrome залогинен на gemini.google.com.
+
 ## Запуск
 
 ```bash
