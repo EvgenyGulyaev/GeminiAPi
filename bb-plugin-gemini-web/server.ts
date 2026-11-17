@@ -59,11 +59,16 @@ export default function plugin(bb: BbPluginApi) {
     composerActions: [],
     experimental_bridgeOptions: {
       acpDialect: "acp",
+      parameterizedModelPicker: true,
       acpLaunchSpec: buildLaunchSpec("http://127.0.0.1:8787/v1"),
     },
     deriveProviderOptions(ctx) {
       const bridgeUrl = String(ctx.settings.bridgeUrl ?? "http://127.0.0.1:8787/v1").trim();
-      return { acpDialect: "acp", acpLaunchSpec: buildLaunchSpec(bridgeUrl) };
+      return {
+        acpDialect: "acp",
+        parameterizedModelPicker: true,
+        acpLaunchSpec: buildLaunchSpec(bridgeUrl),
+      };
     },
   });
 
