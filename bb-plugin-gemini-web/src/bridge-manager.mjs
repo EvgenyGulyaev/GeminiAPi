@@ -46,6 +46,7 @@ export function startBridge(repoPath, proxy) {
     stdio: "ignore",
   });
   child.unref();
+  touchActivity(repoPath);
   return child.pid;
 }
 

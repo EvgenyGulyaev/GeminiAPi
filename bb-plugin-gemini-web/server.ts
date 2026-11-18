@@ -193,4 +193,35 @@ export default function plugin(bb: BbPluginApi) {
   void settings.get().then((values) => {
     bb.log.info(`Gemini Web provider registered (bridge ${values.bridgeUrl})`);
   });
+
+  // Periodic idle watchdog: stops the bridge after idleStopMs regardless of how
+  // it was started (manual start.sh, adapter, or chat RPC). Covers the case
+  // where the bridge runs but no activity ever scheduled a stop timer.
+  let watchdogBaseline = 0;
+  const watchdog = setInterval(async () => {
+    try {
+      const v = await settings.get();
+      const idleMs = Number(v.idleStopMs ?? 180000);
+      if (idleMs <= 0) return;
+      if (!isRunning()) {
+        watchdogBaseline = 0;
+        return;
+      }
+      const repo = String(v.repoPath ?? "/Users/evgeny/Work/gemini");
+      let last = lastActivity(repo);
+      if (!last) {
+        if (!watchdogBaseline) watchdogBaseline = Date.now();
+        last = watchdogBaseline;
+      } else {
+        watchdogBaseline = 0;
+      }
+      if (Date.now() - last >= idleMs) {
+        stopBridge();
+        bb.log.info("gemini-bridge auto-stopped (idle watchdog)");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, 30000);
+  watchdog.unref?.();
 }
